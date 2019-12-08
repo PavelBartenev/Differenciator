@@ -25,6 +25,9 @@ enum functions
 {
 	sin = 15,
 	cos = 16,
+	tan = 17,
+	ln = 18,
+
 };
 
 struct NODE
@@ -124,7 +127,7 @@ int main()
 
 	PrintTree(diff, output, commands, functions);
 
-	system("dot -Tpng D:\\vs_projects\\Calculator\\graph_code_test.txt -oD:\\vs_projects\\Calculator\\graph_image.png");
+	//system("dot -Tpng D:\\vs_projects\\Calculator\\graph_code_test.txt -oD:\\vs_projects\\Calculator\\graph_image.png");
 
 	return 0;
 }
@@ -145,18 +148,23 @@ char* operations_array()
 
 char** functions_array()
 {
-	char** functions = (char**)calloc(20, sizeof(char*));
+	char** functions = (char**)calloc(50, sizeof(char*));
 
-	for (int i = 0; i < 20; i++)
+	for (int i = 0; i < 50; i++)
 	{
 		functions[i] = (char*)calloc(10, sizeof(char));
 	}
     
 	char fsin[10] = "sin";
-	char fcos[10] = "cos";              //исправить левое количество памяти
+	char fcos[10] = "cos";
+	char ftan[10] = "tan";                                    //исправить случайное количество памяти
+	char fln[10] = "ln";
 
 	strcpy(functions[sin], fsin);
 	strcpy(functions[cos], fcos);
+	strcpy(functions[tan], ftan);
+	strcpy(functions[ln], fln);
+
 
 	return functions;
 }
@@ -257,6 +265,7 @@ NODE* GetF()
 	if (function == sin)
 	{
 		s += 3;
+
 		NODE* left_node = Create_node(-1, noth);
 
 		NODE* new_node = Create_node(sin, func);
@@ -270,9 +279,38 @@ NODE* GetF()
 	if (function == cos)
 	{
 		s += 3;
+
 		NODE* left_node = Create_node(-1, noth);
 
 		NODE* new_node = Create_node(cos, func);
+
+		new_node->left = left_node;
+		new_node->right = GetP();
+
+		return new_node;
+	}
+
+	if (function == tan)
+	{
+		s += 3;
+
+		NODE* left_node = Create_node(-1, noth);
+
+		NODE* new_node = Create_node(tan, func);
+
+		new_node->left = left_node;
+		new_node->right = GetP();
+
+		return new_node;
+	}
+
+	if (function == ln)
+	{
+		s += 2;
+
+		NODE* left_node = Create_node(-1, noth);
+
+		NODE* new_node = Create_node(ln, func);
 
 		new_node->left = left_node;
 		new_node->right = GetP();
@@ -319,11 +357,24 @@ NODE* GetN()
 
 int DetectFunction()
 {
-	if ((*s == 's') && (*(s + 1) == 'i') && (*(s + 2) == 'n'))
+	char* current_function = (char*)calloc(20, sizeof(char));
+
+	if (!current_function)
+		return 1;
+
+	memcpy(current_function, s, 10);
+
+	if (!strncmp(current_function, "sin", 3))
 		return sin;
 
-	if ((*s == 'c') && (*(s + 1) == 'o') && (*(s + 2) == 's'))
+	if (!strncmp(current_function, "cos", 3))
 		return cos;
+
+	if (!strncmp(current_function, "tan", 3))
+		return tan;
+
+	if (!strncmp(current_function, "ln", 2))
+		return ln;
 
 	return 0;
 }
@@ -331,6 +382,9 @@ int DetectFunction()
 NODE* Create_node(int data, int type)
 {
 	NODE* new_node = (NODE*)calloc(1, sizeof(NODE));
+
+	if (!new_node)
+		return 0;
 
 	new_node->data = data;
 
@@ -543,6 +597,45 @@ NODE* Differenciator(NODE* node)
 
 				return mul_1;
 			}
+
+			else
+			{
+				NODE* mul_1 = Create_node(Mul, operation);
+
+				mul_1->left = Copy(node);
+
+				NODE* sum = Create_node(Add, operation);
+
+				mul_1->right = sum;
+
+				sum->left = Create_node(Mul, operation);
+
+				sum->left->left = Differenciator(node->right);
+
+				sum->left->right = Create_node(ln, func);
+
+				sum->left->right->left = Create_node(-1, noth);
+
+				sum->left->right->right = Copy(node->left);
+
+				sum->right = Create_node(Mul, operation);
+
+				sum->right->left = Differenciator(node->left);
+
+				NODE* mul_2 = Create_node(Mul, operation);
+
+				sum->right->right = mul_2;
+
+				mul_2->left = Copy(node->right);
+
+				mul_2->right = Create_node(power, operation);
+
+				mul_2->right->right = Create_node(-1, num);
+
+				mul_2->right->left = Copy(node->left);
+
+				return mul_1;
+			}
 		}
 	}
 
@@ -560,6 +653,56 @@ NODE* Differenciator(NODE* node)
 
 			return mul_node;
 		}
+
+		if (node->data == cos)
+		{
+			NODE* mul_node = Create_node(Mul, operation);
+
+			mul_node->right = Differenciator(node->right);
+
+			mul_node->left = Create_node(Sub, operation);
+
+			mul_node->left->left = Create_node(0, num);
+
+			mul_node->left->right = Copy(node);
+
+			mul_node->left->right->data = sin;
+
+			return mul_node;
+		}
+
+		if (node->data == tan)
+		{
+			NODE* mul_node = Create_node(Mul, operation);
+
+			mul_node->right = Differenciator(node->right);
+
+			mul_node->left = Create_node(power, operation);
+				
+			mul_node->left->right = Create_node(-2, num);
+
+			mul_node->left->left = Copy(node);
+
+			mul_node->left->left->data = cos;
+
+			return mul_node;
+		}
+
+		if (node->data == ln)
+		{
+			NODE* mul_node = Create_node(Mul, operation);
+
+			mul_node->right = Differenciator(node->right);
+
+			mul_node->left = Create_node(power, operation);
+
+			mul_node->left->right = Create_node(-1, num);
+
+			mul_node->left->left = Copy(node->right);
+
+			return mul_node;
+		}
+
 	}
 }
 
@@ -635,7 +778,7 @@ int priory(NODE* node)
 		case Div:
 			return 2;
 		case power:
-			return 4;
+			return 11;
 		}
 	}
 
