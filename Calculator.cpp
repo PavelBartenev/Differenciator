@@ -1,8 +1,9 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <cassert>
+#include <string.h>
 //#include <math.h>
 
 enum
@@ -17,6 +18,7 @@ enum
 	num = 8,
 	varx = 9,
 	power = 10,
+	noth = 11,
 };
 
 enum functions
@@ -51,6 +53,8 @@ NODE* GetN();
 
 NODE* GetPow();
 
+NODE* GetF();
+
 NODE* Create_node(int, int);
 
 int Draw(NODE*);
@@ -61,15 +65,21 @@ int Draw_tree(NODE*, FILE*, int, char*);
 
 int Graphviz_prepare(NODE*, int);
 
-char* operations();
+char* operations_array();
+
+char** functions_array();
 
 NODE* Differenciator(NODE*);
 
-int PrintTree(NODE*, FILE*, char*);
+int PrintTree(NODE*, FILE*, char*, char**);
 
-int PrintNode(NODE*, FILE*, char*);
+int PrintNode(NODE*, FILE*, char*, char**);
+
+int DetectFunction();
 
 int priory(NODE*);
+
+int priory_pro(NODE*);
 
 NODE* Copy(NODE*);
 
@@ -96,6 +106,7 @@ int main()
 
 	NODE* head = GetG(str);
 
+	
 	NODE* diff = Differenciator(head);
 
 	//second_link(diff, 0);
@@ -104,20 +115,23 @@ int main()
 	Optimizator(diff);
 	Optimizator(diff);
 
-	Draw(diff);
+	//Draw(diff);
+	
 
-	char* commands = operations();
+	char* commands = operations_array();
+
+	char** functions = functions_array();
 
 	FILE* output = fopen("output.txt", "w");
 
-	PrintTree(diff, output, commands);
+	PrintTree(diff, output, commands, functions);
 
 	system("dot -Tpng D:\\vs_projects\\Calculator\\graph_code_test.txt -oD:\\vs_projects\\Calculator\\graph_image.png");
 
 	return 0;
 }
 
-char* operations()
+char* operations_array()
 {
 	char* operations = (char*)calloc(20, sizeof(char));
 
@@ -129,6 +143,24 @@ char* operations()
 	operations[varx] = 'x';
 
 	return operations;
+}
+
+char** functions_array()
+{
+	char** functions = (char**)calloc(20, sizeof(char*));
+
+	for (int i = 0; i < 20; i++)
+	{
+		functions[i] = (char*)calloc(10, sizeof(char));
+	}
+    
+	char fsin[10] = "sin";
+	char fcos[10] = "cos";              //исправить левое количество памяти
+
+	strcpy(functions[sin], fsin);
+	strcpy(functions[cos], fcos);
+
+	return functions;
 }
 
 NODE* GetG(char* str)
@@ -192,12 +224,12 @@ NODE* GetT()
 		left_node = new_node;
 	}
 
-	return left_node;
+	return left_node;                                            
 }
 
 NODE* GetPow()
 {
-	NODE* left_node = GetP();
+	NODE* left_node = GetF();
 
 	if (*s == '^')
 	{
@@ -212,6 +244,42 @@ NODE* GetPow()
 		new_node->right = right_node;
 
 		left_node = new_node;
+	}
+
+	return left_node;
+}
+
+
+NODE* GetF()
+{
+	NODE* left_node = GetP();
+
+	int function = DetectFunction();
+
+	if (function == sin)
+	{
+		s += 3;
+		NODE* left_node = Create_node(-1, noth);
+
+		NODE* new_node = Create_node(sin, func);
+
+		new_node->left = left_node;
+		new_node->right = GetP();
+
+		return new_node;
+	}
+
+	if (function == cos)
+	{
+		s += 3;
+		NODE* left_node = Create_node(-1, noth);
+
+		NODE* new_node = Create_node(cos, func);
+
+		new_node->left = left_node;
+		new_node->right = GetP();
+
+		return new_node;
 	}
 
 	return left_node;
@@ -251,6 +319,17 @@ NODE* GetN()
 	return Create_node(val, num);
 }
 
+int DetectFunction()
+{
+	if ((*s == 's') && (*(s + 1) == 'i') && (*(s + 2) == 'n'))
+		return sin;
+
+	if ((*s == 'c') && (*(s + 1) == 'o') && (*(s + 2) == 's'))
+		return cos;
+
+	return 0;
+}
+
 NODE* Create_node(int data, int type)
 {
 	NODE* new_node = (NODE*)calloc(1, sizeof(NODE));
@@ -283,7 +362,7 @@ int Draw(NODE* node)
 {
 	FILE* output = fopen("graph_code_test.txt", "w");
 
-	char* commands = operations();
+	char* commands = operations_array();
 	
 	Draw_param(node, output);
 	Draw_tree(node, output, 1, commands);
@@ -468,28 +547,44 @@ NODE* Differenciator(NODE* node)
 			}
 		}
 	}
+
+	if (node->type == func)
+	{
+		if (node->data == sin)
+		{
+			NODE* mul_node = Create_node(Mul, operation);
+
+			mul_node->right = Differenciator(node->right);
+
+			mul_node->left = Copy(node);
+
+			mul_node->left->data = cos;
+
+			return mul_node;
+		}
+	}
 }
 
-int PrintTree(NODE* node, FILE* output, char* operations)
+int PrintTree(NODE* node, FILE* output, char* operations, char** functions)
 {
-	if (priory(node) >= 10)
+	if (priory_pro(node) > priory_pro(node->left))
 		fprintf(output, "(");
 
 	if (node->left)
-		PrintTree(node->left, output, operations);
+		PrintTree(node->left, output, operations, functions);
 
-	if (priory(node) >= 10)
+	if (priory_pro(node) > priory_pro(node->left))
 		fprintf(output, ")");
 
-	PrintNode(node, output, operations);
+	PrintNode(node, output, operations, functions);
 
-	if (priory(node) % 2 == 1)
+	if (priory_pro(node) > priory_pro(node->right))
 		fprintf(output, "(");
 
 	if (node->right)
-		PrintTree(node->right, output, operations);
+		PrintTree(node->right, output, operations, functions);
 
-	if (priory(node) % 2 == 1)
+	if (priory_pro(node) > priory_pro(node->right))
 		fprintf(output, ")");
 
 	return 0;
@@ -508,16 +603,84 @@ NODE* Copy(NODE* node)
 	return new_node;
 }
 
-int PrintNode(NODE* node, FILE* output, char* operations)
+int PrintNode(NODE* node, FILE* output, char* operations, char** functions)
 {
 	if (node->type == num)
 		fprintf(output, "%d", node->data);
+
 	else if (node->type == operation)
 		fprintf(output, "%c", operations[node->data]);
+
 	else if (node->type == var)
 		fprintf(output, "x");
 
+	else if (node->type == func)
+		fprintf(output, "%s", functions[node->data]);
+
 	return 0;
+}
+
+int priory_pro(NODE* node)
+{
+	if (!node)
+		return 10;
+
+	if (node->type == operation)
+	{
+		switch (node->data) {
+		case Add:
+			return 1;
+		case Sub:
+			return 1;
+		case Mul:
+			return 2;
+		case Div:
+			return 2;
+		case power:
+			return 4;
+		}
+	}
+
+	if (node->type == func)
+		return 3;
+
+	return 10;
+}
+
+int priory2(NODE* node)
+{
+	int res = 0;
+
+	if (node->type != operation)
+		return res;
+
+	if (node->type == power)
+		res = 11;
+
+	if (node->type == func)
+		res = 21;
+
+	if ((node->data == Mul) || (node->data == Div))
+	{
+		if ((node->left->data == Add) || (node->left->data == Sub))
+			res = 12;
+
+		if ((node->right->data == Add) || (node->right->data == Sub))
+		{
+			if (res == 12)
+				res = 11;
+			else
+				res = 21;
+		}
+
+		if ((node->right->type == operation) && (node->left->type == func))
+			res = 12;
+
+		//if ((node->left->data == Add) || (node->left->data == Sub))
+
+	}
+
+	return res;
 }
 
 int priory(NODE* node)
@@ -525,7 +688,7 @@ int priory(NODE* node)
 	int res = 0;
 
 	if (node->data == power)
-		res = 31;
+		return 31;
 
 	if ((node->type != operation) || (node->left->type != operation))
 		return res;
@@ -634,9 +797,6 @@ int add_sub_optimize(NODE* node)
 		node->left = to_delete->left;
 		node->right = to_delete->right;
 		node->call = to_delete->call;
-
-		if (node->data == Sub)
-			printf("2");
 
 		return 0;
 	}
