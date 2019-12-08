@@ -79,8 +79,6 @@ int DetectFunction();
 
 int priory(NODE*);
 
-int priory_pro(NODE*);
-
 NODE* Copy(NODE*);
 
 int Optimizator(NODE*);
@@ -567,24 +565,24 @@ NODE* Differenciator(NODE* node)
 
 int PrintTree(NODE* node, FILE* output, char* operations, char** functions)
 {
-	if (priory_pro(node) > priory_pro(node->left))
+	if (priory(node) > priory(node->left))
 		fprintf(output, "(");
 
 	if (node->left)
 		PrintTree(node->left, output, operations, functions);
 
-	if (priory_pro(node) > priory_pro(node->left))
+	if (priory(node) > priory(node->left))
 		fprintf(output, ")");
 
 	PrintNode(node, output, operations, functions);
 
-	if (priory_pro(node) > priory_pro(node->right))
+	if (priory(node) > priory(node->right))
 		fprintf(output, "(");
 
 	if (node->right)
 		PrintTree(node->right, output, operations, functions);
 
-	if (priory_pro(node) > priory_pro(node->right))
+	if (priory(node) > priory(node->right))
 		fprintf(output, ")");
 
 	return 0;
@@ -620,7 +618,7 @@ int PrintNode(NODE* node, FILE* output, char* operations, char** functions)
 	return 0;
 }
 
-int priory_pro(NODE* node)
+int priory(NODE* node)
 {
 	if (!node)
 		return 10;
@@ -645,63 +643,6 @@ int priory_pro(NODE* node)
 		return 3;
 
 	return 10;
-}
-
-int priory2(NODE* node)
-{
-	int res = 0;
-
-	if (node->type != operation)
-		return res;
-
-	if (node->type == power)
-		res = 11;
-
-	if (node->type == func)
-		res = 21;
-
-	if ((node->data == Mul) || (node->data == Div))
-	{
-		if ((node->left->data == Add) || (node->left->data == Sub))
-			res = 12;
-
-		if ((node->right->data == Add) || (node->right->data == Sub))
-		{
-			if (res == 12)
-				res = 11;
-			else
-				res = 21;
-		}
-
-		if ((node->right->type == operation) && (node->left->type == func))
-			res = 12;
-
-		//if ((node->left->data == Add) || (node->left->data == Sub))
-
-	}
-
-	return res;
-}
-
-int priory(NODE* node)
-{
-	int res = 0;
-
-	if (node->data == power)
-		return 31;
-
-	if ((node->type != operation) || (node->left->type != operation))
-		return res;
-
-	if ((node->data == Mul) || (node->data == Div))
-		if ((node->left->data == Add) || (node->left->data == Sub))
-			res = 10;
-
-	if ((node->data == Mul) || (node->data == Div))
-		if ((node->right->data == Add) || (node->right->data == Sub))
-			res++;
-
-	return res;
 }
 
 int Optimizator(NODE* node)
