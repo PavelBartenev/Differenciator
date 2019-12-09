@@ -6,7 +6,14 @@
 #include <string.h>
 //#include <math.h>
 
-enum
+enum error_codes
+{
+	calloc_fail = 1313,
+	arg_fail = 1414,
+	file_fail = 1515,
+};
+
+enum commands
 {
 	Add = 1,
 	Sub = 2,
@@ -27,22 +34,44 @@ enum functions
 	cos = 16,
 	tan = 17,
 	ln = 18,
-
 };
 
 struct NODE
-{
-	int data;
-	NODE* left;
-	NODE* right;
-	NODE* prev;
-	int call;
-	int type;
-};
+	{
+		int data;
+		NODE* left;
+		NODE* right;
+		NODE* prev;
+		int call;
+		int type;
+	};
 
-const char* s = "";
+int g_dump_work = 0;
+
+#define DEBUG
+
+#ifdef DEBUG
+#define DUMP(code)																								  \
+    {																											  \
+       if (g_dump_work == 0)																				      \
+	   {                                                                                                          \
+               printf("FAILED  LINE %ld\nFUNCTION FAILED %s\n\n", __LINE__, __FUNCTION__);					      \
+		       printf("CODE %d", code);                                                                           \
+	   }																										  \
+       g_dump_work++;                                                                                             \
+    }                    																						  \
+
+#else                                                                                                                                                        
+#define DUMP(this_);      
+#endif
+
+const char* current_symbol = "";
 
 int g_number = 0;
+
+NODE* BuildTree(FILE*);
+
+NODE* OptimizedOut(NODE*, FILE*);
 
 NODE* GetG(char*);
 
@@ -74,6 +103,14 @@ char** functions_array();
 
 NODE* Differenciator(NODE*);
 
+NODE* add_sub_diff(NODE*);
+
+NODE* mul_diff(NODE*);
+
+NODE* power_diff(NODE*);
+
+NODE* func_diff(NODE*);
+
 int PrintTree(NODE*, FILE*, char*, char**);
 
 int PrintNode(NODE*, FILE*, char*, char**);
@@ -97,6 +134,28 @@ int second_link(NODE*, NODE*);
 int main()
 {
 	FILE* input = fopen("input.txt", "r");
+
+	NODE* head = BuildTree(input);
+
+	NODE* diff = Differenciator(head);
+
+	FILE* output = fopen("output.txt", "w");
+
+	OptimizedOut(diff, output);
+
+	//system("dot -Tpng D:\\vs_projects\\Calculator\\graph_code_test.txt -oD:\\vs_projects\\Calculator\\graph_image.png");
+
+	return 0;
+}
+
+NODE* BuildTree(FILE* input)
+{
+	if (!input)
+	{
+		DUMP(file_fail);
+		return 0;
+	}
+
 	fseek(input, 0, SEEK_END);
 	int size = ftell(input);
 	fseek(input, 0, SEEK_SET);
@@ -107,34 +166,44 @@ int main()
 
 	NODE* head = GetG(str);
 
-	
-	NODE* diff = Differenciator(head);
+	return head;
+}
 
-	//second_link(diff, 0);
+NODE* OptimizedOut(NODE* diff, FILE* output)
+{
+	if (!diff)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
 
-	Optimizator(diff);
-	Optimizator(diff);
-	Optimizator(diff);
+	if (!output)
+	{
+		DUMP(file_fail);
+		return 0;
+	}
 
-	//Draw(diff);
-	
-
+	for (int i = 0; i < 3; i++)
+		Optimizator(diff);
+	   
 	char* commands = operations_array();
 
 	char** functions = functions_array();
 
-	FILE* output = fopen("output.txt", "w");
-
 	PrintTree(diff, output, commands, functions);
 
-	//system("dot -Tpng D:\\vs_projects\\Calculator\\graph_code_test.txt -oD:\\vs_projects\\Calculator\\graph_image.png");
-
-	return 0;
+	return diff;
 }
 
 char* operations_array()
 {
 	char* operations = (char*)calloc(20, sizeof(char));
+
+	if (!operations)
+	{
+		DUMP(calloc_fail);
+		return 0;
+	}
 
 	operations[Add] = '+';
 	operations[Sub] = '-';
@@ -150,9 +219,21 @@ char** functions_array()
 {
 	char** functions = (char**)calloc(50, sizeof(char*));
 
+	if (!functions)
+	{
+		DUMP(calloc_fail);
+		return 0;
+	}
+
 	for (int i = 0; i < 50; i++)
 	{
 		functions[i] = (char*)calloc(10, sizeof(char));
+
+		if (!functions[i])
+		{
+			DUMP(calloc_fail);
+			return 0;
+		}
 	}
     
 	char fsin[10] = "sin";
@@ -165,15 +246,14 @@ char** functions_array()
 	strcpy(functions[tan], ftan);
 	strcpy(functions[ln], fln);
 
-
 	return functions;
 }
 
 NODE* GetG(char* str)
 {
-	s = str;
+	current_symbol = str;
 	NODE* head = GetE();
-	assert(*s == '\0');
+	assert(*current_symbol == '\0');
 
 	return head;
 }
@@ -182,10 +262,10 @@ NODE* GetE()
 {
 	NODE* left_node = GetT();
 
-	while (*s == '+' || *s == '-')
+	while (*current_symbol == '+' || *current_symbol == '-')
 	{
-		char op = *s;
-		s++;
+		char op = *current_symbol;
+		current_symbol++;
 
 		NODE* right_node = GetT();
 
@@ -210,10 +290,10 @@ NODE* GetT()
 {
 	NODE* left_node = GetPow();
 
-	while (*s == '*' || *s == '/')
+	while (*current_symbol == '*' || *current_symbol == '/')
 	{
-		char op = *s;
-		s++;
+		char op = *current_symbol;
+		current_symbol++;
 
 		NODE* right_node = GetPow();
 
@@ -237,10 +317,10 @@ NODE* GetPow()
 {
 	NODE* left_node = GetF();
 
-	if (*s == '^')
+	if (*current_symbol == '^')
 	{
-		char op = *s;
-		s++;
+		char op = *current_symbol;
+		current_symbol++;
 
 		NODE* right_node = GetP();
 
@@ -255,7 +335,6 @@ NODE* GetPow()
 	return left_node;
 }
 
-
 NODE* GetF()
 {
 	NODE* left_node = GetP();
@@ -264,7 +343,7 @@ NODE* GetF()
 
 	if (function == sin)
 	{
-		s += 3;
+		current_symbol += 3;
 
 		NODE* left_node = Create_node(-1, noth);
 
@@ -278,7 +357,7 @@ NODE* GetF()
 
 	if (function == cos)
 	{
-		s += 3;
+		current_symbol += 3;
 
 		NODE* left_node = Create_node(-1, noth);
 
@@ -292,7 +371,7 @@ NODE* GetF()
 
 	if (function == tan)
 	{
-		s += 3;
+		current_symbol += 3;
 
 		NODE* left_node = Create_node(-1, noth);
 
@@ -306,7 +385,7 @@ NODE* GetF()
 
 	if (function == ln)
 	{
-		s += 2;
+		current_symbol += 2;
 
 		NODE* left_node = Create_node(-1, noth);
 
@@ -323,18 +402,18 @@ NODE* GetF()
 
 NODE* GetP()
 {
-	if (*s == '(')
+	if (*current_symbol == '(')
 	{
-		s++;
+		current_symbol++;
 		NODE* inside = GetE();
-		assert(*s == ')');
-		s++;
+		assert(*current_symbol == ')');
+		current_symbol++;
 		return inside;
 	}
 
-	else if (*s == 'x')
+	else if (*current_symbol == 'x')
 	{
-		s++;
+		current_symbol++;
 		return Create_node(varx, var);
 	}
 
@@ -346,10 +425,10 @@ NODE* GetN()
 {
 	int val = 0;
 
-	while ('0' <= *s && *s <= '9')
+	while ('0' <= *current_symbol && *current_symbol <= '9')
 	{
-		val = 10 * val + (*s - '0');
-		s++;
+		val = 10 * val + (*current_symbol - '0');
+		current_symbol++;
 	}
 
 	return Create_node(val, num);
@@ -362,7 +441,7 @@ int DetectFunction()
 	if (!current_function)
 		return 1;
 
-	memcpy(current_function, s, 10);
+	memcpy(current_function, current_symbol, 10);
 
 	if (!strncmp(current_function, "sin", 3))
 		return sin;
@@ -384,7 +463,10 @@ NODE* Create_node(int data, int type)
 	NODE* new_node = (NODE*)calloc(1, sizeof(NODE));
 
 	if (!new_node)
+	{
+		DUMP(calloc_fail);
 		return 0;
+	}
 
 	new_node->data = data;
 
@@ -399,6 +481,12 @@ NODE* Create_node(int data, int type)
 
 int second_link(NODE* node, NODE* prev_node)
 {
+	if (!node || !prev_node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	node->prev = prev_node;
 
 	if (node->left)
@@ -508,6 +596,8 @@ int Draw_tree(NODE* node, FILE* output, int level, char* commands)
 	return 0;
 }
 
+
+
 int Graphviz_prepare(NODE* node, int number)
 {
 	node->call = number;
@@ -523,6 +613,12 @@ int Graphviz_prepare(NODE* node, int number)
 
 NODE* Differenciator(NODE* node)
 {
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (node->type == var)
 		return Create_node(1, num);
 	
@@ -531,183 +627,237 @@ NODE* Differenciator(NODE* node)
 
 	if (node->type == operation)
 	{
-		if (node->data == Add) {
-			NODE* high_node = Create_node(Add, operation);
+		if (node->data == Add || node->data == Sub)
+			return add_sub_diff(node);
 
-			NODE* left_node = Differenciator(node->left);
-			NODE* right_node = Differenciator(node->right);
+		if (node->data == Mul)
+			return mul_diff(node);
 
-			high_node->left = left_node;
-			high_node->right = right_node;
-
-			return high_node;
-		}
-
-		if (node->data == Sub) {
-			NODE* high_node = Create_node(Sub, operation);
-
-			NODE* left_node = Differenciator(node->left);
-			NODE* right_node = Differenciator(node->right);
-
-			high_node->left = left_node;
-			high_node->right = right_node;
-
-			return high_node;
-		}
-
-		if (node->data == Mul) {
-			NODE* high_node = Create_node(Add, operation);
-
-			NODE* left_mul = Create_node(Mul, operation);
-			NODE* right_mul = Create_node(Mul, operation);
-
-			left_mul->left = Differenciator(node->left);
-			left_mul->right = Copy(node->right);
-
-			right_mul->left = Copy(node->left);
-			right_mul->right = Differenciator(node->right);
-
-			high_node->left = left_mul;
-			high_node->right = right_mul;
-
-			return high_node;
-		}
-
-		if (node->data == power) {
-
-			if (node->right->type == num) {
-
-				NODE* mul_1 = Create_node(Mul, operation);
-
-				NODE* new_mul = Create_node(node->right->data, num);
-
-				mul_1->right = new_mul;
-
-				NODE* mul_2 = Create_node(Mul, operation);
-
-				mul_1->left = mul_2;
-
-				mul_2->left = Differenciator(node->left);
-
-				mul_2->right = Create_node(power, operation);
-
-				mul_2->right->right = Create_node(node->right->data - 1, num);
-
-				mul_2->right->left = Copy(node->left);
-
-				return mul_1;
-			}
-
-			else
-			{
-				NODE* mul_1 = Create_node(Mul, operation);
-
-				mul_1->left = Copy(node);
-
-				NODE* sum = Create_node(Add, operation);
-
-				mul_1->right = sum;
-
-				sum->left = Create_node(Mul, operation);
-
-				sum->left->left = Differenciator(node->right);
-
-				sum->left->right = Create_node(ln, func);
-
-				sum->left->right->left = Create_node(-1, noth);
-
-				sum->left->right->right = Copy(node->left);
-
-				sum->right = Create_node(Mul, operation);
-
-				sum->right->left = Differenciator(node->left);
-
-				NODE* mul_2 = Create_node(Mul, operation);
-
-				sum->right->right = mul_2;
-
-				mul_2->left = Copy(node->right);
-
-				mul_2->right = Create_node(power, operation);
-
-				mul_2->right->right = Create_node(-1, num);
-
-				mul_2->right->left = Copy(node->left);
-
-				return mul_1;
-			}
-		}
+		if (node->data == power)
+			return power_diff(node);
 	}
 
 	if (node->type == func)
+		return func_diff(node);
+
+	return 0;
+}
+
+NODE* add_sub_diff(NODE* node)
+{
+	if (!node)
 	{
-		if (node->data == sin)
-		{
-			NODE* mul_node = Create_node(Mul, operation);
-
-			mul_node->right = Differenciator(node->right);
-
-			mul_node->left = Copy(node);
-
-			mul_node->left->data = cos;
-
-			return mul_node;
-		}
-
-		if (node->data == cos)
-		{
-			NODE* mul_node = Create_node(Mul, operation);
-
-			mul_node->right = Differenciator(node->right);
-
-			mul_node->left = Create_node(Sub, operation);
-
-			mul_node->left->left = Create_node(0, num);
-
-			mul_node->left->right = Copy(node);
-
-			mul_node->left->right->data = sin;
-
-			return mul_node;
-		}
-
-		if (node->data == tan)
-		{
-			NODE* mul_node = Create_node(Mul, operation);
-
-			mul_node->right = Differenciator(node->right);
-
-			mul_node->left = Create_node(power, operation);
-				
-			mul_node->left->right = Create_node(-2, num);
-
-			mul_node->left->left = Copy(node);
-
-			mul_node->left->left->data = cos;
-
-			return mul_node;
-		}
-
-		if (node->data == ln)
-		{
-			NODE* mul_node = Create_node(Mul, operation);
-
-			mul_node->right = Differenciator(node->right);
-
-			mul_node->left = Create_node(power, operation);
-
-			mul_node->left->right = Create_node(-1, num);
-
-			mul_node->left->left = Copy(node->right);
-
-			return mul_node;
-		}
-
+		DUMP(arg_fail);
+		return 0;
 	}
+
+	if (node->data == Add)
+	{
+		NODE* high_node = Create_node(Add, operation);
+
+		NODE* left_node = Differenciator(node->left);
+		NODE* right_node = Differenciator(node->right);
+
+		high_node->left = left_node;
+		high_node->right = right_node;
+
+		return high_node;
+	}
+
+	if (node->data == Sub)
+	{
+		NODE* high_node = Create_node(Sub, operation);
+
+		NODE* left_node = Differenciator(node->left);
+		NODE* right_node = Differenciator(node->right);
+
+		high_node->left = left_node;
+		high_node->right = right_node;
+
+		return high_node;
+	}
+
+	return 0;
+}
+
+NODE* mul_diff(NODE* node)
+{
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
+	NODE* high_node = Create_node(Add, operation);
+
+	NODE* left_mul = Create_node(Mul, operation);
+	NODE* right_mul = Create_node(Mul, operation);
+
+	left_mul->left = Differenciator(node->left);
+	left_mul->right = Copy(node->right);
+
+	right_mul->left = Copy(node->left);
+	right_mul->right = Differenciator(node->right);
+
+	high_node->left = left_mul;
+	high_node->right = right_mul;
+
+	return high_node;
+}
+
+NODE* power_diff(NODE* node)
+{
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
+	if (node->right->type == num) 
+	{
+
+		NODE* mul_1 = Create_node(Mul, operation);
+
+		NODE* new_mul = Create_node(node->right->data, num);
+
+		mul_1->right = new_mul;
+
+		NODE* mul_2 = Create_node(Mul, operation);
+
+		mul_1->left = mul_2;
+
+		mul_2->left = Differenciator(node->left);
+
+		mul_2->right = Create_node(power, operation);
+
+		mul_2->right->right = Create_node(node->right->data - 1, num);
+
+		mul_2->right->left = Copy(node->left);
+
+		return mul_1;
+	}
+
+	else
+	{
+		NODE* mul_1 = Create_node(Mul, operation);
+
+		mul_1->left = Copy(node);
+
+		NODE* sum = Create_node(Add, operation);
+
+		mul_1->right = sum;
+
+		sum->left = Create_node(Mul, operation);
+
+		sum->left->left = Differenciator(node->right);
+
+		sum->left->right = Create_node(ln, func);
+
+		sum->left->right->left = Create_node(-1, noth);
+
+		sum->left->right->right = Copy(node->left);
+
+		sum->right = Create_node(Mul, operation);
+
+		sum->right->left = Differenciator(node->left);
+
+		NODE* mul_2 = Create_node(Mul, operation);
+
+		sum->right->right = mul_2;
+
+		mul_2->left = Copy(node->right);
+
+		mul_2->right = Create_node(power, operation);
+
+		mul_2->right->right = Create_node(-1, num);
+
+		mul_2->right->left = Copy(node->left);
+
+		return mul_1;
+	}
+}
+
+NODE* func_diff(NODE* node)
+{
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
+	if (node->data == sin)
+	{
+		NODE* mul_node = Create_node(Mul, operation);
+
+		mul_node->right = Differenciator(node->right);
+
+		mul_node->left = Copy(node);
+
+		mul_node->left->data = cos;
+
+		return mul_node;
+	}
+
+	if (node->data == cos)
+	{
+		NODE* mul_node = Create_node(Mul, operation);
+
+		mul_node->right = Differenciator(node->right);
+
+		mul_node->left = Create_node(Sub, operation);
+
+		mul_node->left->left = Create_node(0, num);
+
+		mul_node->left->right = Copy(node);
+
+		mul_node->left->right->data = sin;
+
+		return mul_node;
+	}
+
+	if (node->data == tan)
+	{
+		NODE* mul_node = Create_node(Mul, operation);
+
+		mul_node->right = Differenciator(node->right);
+
+		mul_node->left = Create_node(power, operation);
+
+		mul_node->left->right = Create_node(-2, num);
+
+		mul_node->left->left = Copy(node);
+
+		mul_node->left->left->data = cos;
+
+		return mul_node;
+	}
+
+	if (node->data == ln)
+	{
+		NODE* mul_node = Create_node(Mul, operation);
+
+		mul_node->right = Differenciator(node->right);
+
+		mul_node->left = Create_node(power, operation);
+
+		mul_node->left->right = Create_node(-1, num);
+
+		mul_node->left->left = Copy(node->right);
+
+		return mul_node;
+	}
+
+	return 0;
 }
 
 int PrintTree(NODE* node, FILE* output, char* operations, char** functions)
 {
+	if (!node || !operations || !functions)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (priory(node) > priory(node->left))
 		fprintf(output, "(");
 
@@ -733,7 +883,19 @@ int PrintTree(NODE* node, FILE* output, char* operations, char** functions)
 
 NODE* Copy(NODE* node)
 {
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	NODE* new_node = Create_node(node->data, node->type);
+
+	if (!new_node)
+	{
+		DUMP(calloc_fail);
+		return 0;
+	}
 
 	if (node->left)
 		new_node->left = Copy(node->left);
@@ -745,7 +907,13 @@ NODE* Copy(NODE* node)
 }
 
 int PrintNode(NODE* node, FILE* output, char* operations, char** functions)
-{
+{                          
+	if (!node || !operations || !functions)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (node->type == num)
 		fprintf(output, "%d", node->data);
 
@@ -764,7 +932,7 @@ int PrintNode(NODE* node, FILE* output, char* operations, char** functions)
 int priory(NODE* node)
 {
 	if (!node)
-		return 10;
+		return 13;
 
 	if (node->type == operation)
 	{
@@ -783,13 +951,19 @@ int priory(NODE* node)
 	}
 
 	if (node->type == func)
-		return 3;
+		return 12;
 
-	return 10;
+	return 13;
 }
 
 int Optimizator(NODE* node)
 {
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (node->type == operation)
 	{
 		if (node->data == Mul)
@@ -813,6 +987,12 @@ int Optimizator(NODE* node)
 
 int mul_optimize(NODE* node)
 {
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (node->left == nullptr)
 		return 0;
 
@@ -841,6 +1021,12 @@ int mul_optimize(NODE* node)
 
 int add_sub_optimize(NODE* node)
 {
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (node->left == nullptr)
 		return 0;
 
@@ -890,6 +1076,12 @@ int add_sub_optimize(NODE* node)
 
 int power_optimize(NODE* node)
 {
+	if (!node)
+	{
+		DUMP(arg_fail);
+		return 0;
+	}
+
 	if (node->left == nullptr)
 		return 0;
 
